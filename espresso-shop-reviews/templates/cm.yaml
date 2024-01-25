@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+    name: {{ .Values.Configmap.name1 }}
+data:
+  # property-like keys; each key maps to a simple value
+    SERVICE_VERSION1: {{ .Values.Configmap.SERVICE_VERSION1 }}
