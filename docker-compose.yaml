@@ -1,0 +1,187 @@
+version: '3.3'
+
+services:
+  ui:
+    container_name: ui
+    hostname: ui
+    image: ui
+    restart: always
+    ports:
+      - 8888:8080
+    environment:
+       - JAVA_OPTS=-XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/urandom
+       - SERVER_TOMCAT_ACCESSLOG_ENABLED=true
+       - ENDPOINTS_CATALOG=http://catalog:8080
+       - ENDPOINTS_CARTS=http://carts:8080
+       - ENDPOINTS_ORDERS=http://orders:8080
+       - ENDPOINTS_CHECKOUT=http://checkout:8080
+       - ENDPOINTS_ASSETS=http://assets:8080  
+    mem_limit: 256m
+    cap_drop:
+      - ALL
+    networks:
+      - revive
+    depends_on:
+      - catalog
+      - carts
+      - orders
+      - checkout
+      - assets
+
+  orders:
+    container_name: orders
+    hostname: orders
+    image:  orders
+    restart: always
+    mem_limit: 256m
+    cap_drop:
+      - ALL
+    environment:
+       - JAVA_OPTS=-XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/urandom
+       -  SERVER_TOMCAT_ACCESSLOG_ENABLED=true
+       - SPRING_PROFILES_ACTIVE=rabbitmq
+       - SPRING_DATASOURCE_URL=jdbc:postgresql://orders-db:5432/orders
+       - SPRING_DATASOURCE_USERNAME=orders_user
+       - SPRING_DATASOURCE_PASSWORD=devop
+       - SPRING_RABBITMQ_HOST=rabbitmq 
+    depends_on:
+       - rabbitmq
+       - orders-db
+       - checkout
+      
+    networks:
+      - revive
+
+  checkout:
+    container_name: checkout
+    hostname: checkout
+    image: checkout
+    restart: always
+    mem_limit: 256m
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid
+    environment:
+      - REDIS_URL=redis://checkout-redis:6379
+      - ENDPOINTS_ORDERS=http://orders:8080
+    depends_on:
+       - checkout-redis 
+    networks:
+      - revive
+
+  carts:
+    container_name: carts
+    hostname: carts
+    image: carts
+    restart: always
+    mem_limit: 256m
+    cap_drop:
+      - ALL
+    environment:
+       - JAVA_OPTS=-XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/urandom
+       - SERVER_TOMCAT_ACCESSLOG_ENABLED=true
+       - SPRING_PROFILES_ACTIVE=dynamodb
+       - CARTS_DYNAMODB_ENDPOINT=http://carts-db:8000
+       - ENDPOINTS_CARTS=http://carts:8080
+       - CARTS_DYNAMODB_CREATETABLE=true
+       - AWS_ACCESS_KEY_ID=key
+       - AWS_SECRET_ACCESS_KEY=dummy
+    depends_on:
+      - carts-db
+    networks:
+      - revive
+
+  catalog:
+    container_name: catalog
+    hostname: catalog
+    image: catalog
+    restart: always
+    mem_limit: 128m
+    cap_drop:
+      - ALL
+    depends_on:
+      - catalog-db
+    environment:
+      - GIN_MODE=release
+      - DB_PASSWORD=devop
+    networks:
+      - revive
+
+  assets:
+    container_name: assets
+    hostname: assets
+    image: assets
+    restart: always
+    mem_limit: 64m
+    cap_drop:
+      - ALL
+    networks:
+      - revive
+
+  rabbitmq:
+    container_name: rabbitmq
+    hostname: rabbitmq
+    image: rabbitmq-image
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - revive
+
+  carts-db:
+    container_name: carts-db
+    hostname: carts-db
+    image:  carts-db
+    restart: always
+    mem_limit: 128m
+    networks:
+      - revive
+
+  orders-db:
+    container_name: orders-db
+    hostname: orders-db
+    image: orders-db
+    restart: always
+    mem_limit: 128m
+    environment:
+      # - reschedule=on-node-failure
+      - POSTGRES_DB=orders
+      - POSTGRES_USER=orders_user
+      - POSTGRES_PASSWORD=devop
+    networks:
+      - revive
+
+  checkout-redis:
+    container_name: checkout-redis
+    hostname: checkout-redis
+    image: checkout-redis
+    environment:
+      - PORT=8080
+    restart: always
+    mem_limit: 128m
+    networks:
+      - revive
+
+  catalog-db:
+    container_name: catalog-db
+    hostname: catalog-db
+    image: db
+    restart: always
+    mem_limit: 128m
+    environment:
+      - MYSQL_ALLOW_EMPTY_PASSWORD=true
+      - MYSQL_USER=catalog_user
+      - MYSQL_DATABASE=sampledb
+      - MYSQL_ROOT_PASSWORD=devop
+      - MYSQL_PASSWORD=devop
+    networks:
+      - revive
+
+networks:
+  revive:
+    driver: bridge
+
+    
